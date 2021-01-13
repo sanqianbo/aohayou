@@ -1,4 +1,6 @@
 # -*- coding:UTF-8 -*-
+import sys
+
 import bs4
 from bs4 import BeautifulSoup, NavigableString
 import requests
@@ -9,21 +11,67 @@ def getTitleInfo(html):
     div_bf = BeautifulSoup(html,features = "lxml")
     div = div_bf.find_all('div', class_ = 'alex')
     p_bf = BeautifulSoup(str(div[0]),features = "lxml")
-    print(p_bf)
+    resut =[]
     for child in p_bf.div.children:
         if isinstance(child,NavigableString):
             continue
-        print(child,child.string)
+        if (child.string != None):
+            resut.append(child.string)
+        ss =''
+        a = child.find_all('a')
+        size = len(a)
+        if (size <= 0):
+            continue
+        for aa in a:
+            a_bf = BeautifulSoup(str(aa),features = "lxml")
+            for child in a_bf.a.children:
+                # print(child.string)
+                ss += child.string
+                ss +='#'
+        resut.append(ss[0:-1])
+    # print(resut)
+    return resut
 
 
 
+def getRemarkInfo(html,title):
+    div_bf = BeautifulSoup(html,features = "lxml")
+    div = div_bf.find_all('div', class_ = 'info')
+    p_bf = BeautifulSoup(str(div[0]),features = "lxml")
+    # print(p_bf)
+    resut =[]
+    for child in p_bf.div.children:
+        if (child.string != None):
+            resut.append(child.string)
+    img = div_bf.find_all('img', attrs={'alt':title})
+    img_bf = BeautifulSoup(str(img[0]),features = "lxml")
+    tag = img_bf.img
+    # print(tag['src'])
+    resut.append(tag['src'])
+    return resut
 
-def getRemarkInfo(html):
-    pass
+
+def saveInfo(listTitle, listRemark, title,url,conn):
+    cursor = conn.cursor()
+    # sql = "INSERT INTO cartoon_info(area,type,issue,language,title,alias,label,introduction,remark,poster_url,link_url) VALUES (%s, %s,%s, %s,%s, %s,%s, %s,%s, %s);"
+    sql = "INSERT INTO cartoon_info(area,type,issue) VALUES (%s, %s,%s);"
+    try:
+        # 执行SQL语句
+        # cursor.execute(sql, [listTitle[1],listTitle[2],listTitle[3],'日漫',title,listTitle[0],listTitle[5],listRemark[0],listTitle[6],listRemark[1],url])
+        cursor.execute(sql, ['1','2','2021'])
+        # 提交事务
+        conn.commit()
+    except Exception as e:
+        # 有异常，回滚事务
+        conn.rollback()
+    cursor.close()
+    # conn.close()
 
 
-def getCartoonInfo(eacha):
-    print(eacha.string, eacha.get('href'))
+def getCartoonInfo(eacha,conn):
+    title = eacha.string
+    url = eacha.get('href')
+    print(title, url)
     tar = 'http://www.imomoe.ai'
     target = tar+eacha.get('href')
     req = requests.get(url = target)
@@ -32,8 +80,9 @@ def getCartoonInfo(eacha):
     # print(html)
     listTitle = []
     listRemark = []
-    list = getTitleInfo(html)
-    listRemark = getRemarkInfo(html)
+    listTitle = getTitleInfo(html)
+    listRemark = getRemarkInfo(html,title)
+    saveInfo(listTitle,listRemark,title,url,conn)
     div_bf = BeautifulSoup(html,features = "lxml")
     div = div_bf.find_all('div', class_ = 'movurl')
     a_bf = BeautifulSoup(str(div[0]),features = "lxml")
@@ -45,7 +94,7 @@ def getCartoonInfo(eacha):
 
 
 
-def getPageInfo(html):
+def getPageInfo(html,conn):
     div_bf = BeautifulSoup(html,features = "lxml")
     div = div_bf.find_all('div', class_ = 'pics')
     # print(str(div[0]))
@@ -55,17 +104,17 @@ def getPageInfo(html):
         a_bf = BeautifulSoup(str(each),features = "lxml")
         a = a_bf.find_all('a')
         for eacha in a:
-            getCartoonInfo(eacha)
+            getCartoonInfo(eacha,conn)
 
 
-def print_page_info(path):
+def print_page_info(path,conn):
     tar = 'http://www.imomoe.ai/search.asp'
     target = tar+path
     req = requests.get(url = target)
     req.encoding = req.apparent_encoding
     html = req.text
     # print(html)
-    getPageInfo(html)
+    getPageInfo(html,conn)
     div_bf = BeautifulSoup(html,features = 'lxml')
     div = div_bf.find_all('div', class_ = 'pages')
     # print(div)
@@ -88,24 +137,10 @@ def print_page_info(path):
     return resut
 
 if __name__ == "__main__":
-    # conn = pymysql.connect(host='127.0.0.1', user='root',password='wanghongbo',database='aohayou',charset='utf8')
-    # cursor = conn.cursor()
-    # sql = "INSERT INTO cartoon_info(area, issue) VALUES (%s, %s);"
-    # area = "area"
-    # type = '2020'
-    # try:
-    #     # 执行SQL语句
-    #     cursor.execute(sql, [area, type])
-    #     # 提交事务
-    #     conn.commit()
-    # except Exception as e:
-    #     # 有异常，回滚事务
-    #     conn.rollback()
-    # cursor.close()
-    # conn.close()
+    conn = pymysql.connect(host='127.0.0.1', user='root',password='wanghongbo',database='aohayou',charset='utf8')
     href = '?page=1&searchword=%C8%D5%D3%EF&searchtype=-1'
     while True:
-        resut = print_page_info(href)
+        resut = print_page_info(href,conn)
         if(resut == ''):
             break
         href = resut
